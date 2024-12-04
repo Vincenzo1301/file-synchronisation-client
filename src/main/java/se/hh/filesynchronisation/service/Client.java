@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import se.hh.filesynchronisation.data.FileBackupRequest;
@@ -20,36 +19,21 @@ import se.hh.filesynchronisation.data.FileSyncResult;
 
 public class Client {
 
-  private final UUID clientIdentifier;
+  private final String clientIdentifier;
   private final Socket clientSocket;
   private final ObjectOutputStream out;
   private final ObjectInputStream in;
   private final Set<File> files;
 
-  public Client(String host, int port) {
+  public Client(String host, int port, String clientIdentifier) {
     try {
-      clientIdentifier = UUID.randomUUID();
-      clientSocket = new Socket(host, port);
-      out = new ObjectOutputStream(clientSocket.getOutputStream());
-      in = new ObjectInputStream(clientSocket.getInputStream());
-      files = new HashSet();
+      this.clientIdentifier = clientIdentifier;
+      this.clientSocket = new Socket(host, port);
+      this.out = new ObjectOutputStream(clientSocket.getOutputStream());
+      this.in = new ObjectInputStream(clientSocket.getInputStream());
+      this.files = new HashSet();
     } catch (Exception e) {
       throw new RuntimeException("Something went wrong while creating the client", e);
-    }
-  }
-
-  /**
-   * Closes the client including the input and output streams and the client socket.
-   *
-   * @throws RuntimeException if something went wrong while closing the client
-   */
-  public void close() {
-    try {
-      if (in != null) in.close();
-      if (out != null) out.close();
-      if (clientSocket != null && !clientSocket.isClosed()) clientSocket.close();
-    } catch (Exception e) {
-      throw new RuntimeException("Something went wrong while closing the client", e);
     }
   }
 
@@ -70,17 +54,32 @@ public class Client {
     }
 
     Set<FileDto> fileDtos = files.stream().map(this::toFileDto).collect(Collectors.toSet());
-    FileSyncRequest syncRequest = new FileSyncRequest(clientIdentifier.toString(), fileDtos);
+    FileSyncRequest syncRequest = new FileSyncRequest(clientIdentifier, fileDtos);
 
     try {
       out.writeObject(syncRequest);
       out.flush();
       Object o = in.readObject();
       if (o instanceof FileSyncResult response) {
-        System.out.println("Received response from server: " + response);
-        FileBackupRequest backupRequest = new FileBackupRequest(clientIdentifier.toString(), response.fileMetadata());
-        out.writeObject(backupRequest);
-        out.flush();
+        System.out.println("-----------------------------------------------------");
+        System.out.println("Received file metadata from server which has to been safe.");
+
+        if (!response.fileMetadata().isEmpty()) {
+          response
+              .fileMetadata()
+              .forEach(
+                  file ->
+                      System.out.printf(
+                          "   * %s (Size: %d bytes, Path: %s)%n",
+                          file.name(), file.size(), file.path()));
+          FileBackupRequest backupRequest =
+              new FileBackupRequest(clientIdentifier, response.fileMetadata());
+          out.writeObject(backupRequest);
+          out.flush();
+        }
+
+        close();
+        System.out.println("-----------------------------------------------------");
       }
     } catch (IOException | ClassNotFoundException e) {
       throw new RuntimeException("Something went wrong while sending file metadata", e);
@@ -95,5 +94,15 @@ public class Client {
       System.err.println("Failed to determine content type for file: " + file.getName());
     }
     return new FileDto(file.getName(), file.length(), contentType, file.getAbsolutePath());
+  }
+
+  private void close() {
+    try {
+      if (in != null) in.close();
+      if (out != null) out.close();
+      if (clientSocket != null && !clientSocket.isClosed()) clientSocket.close();
+    } catch (Exception e) {
+      throw new RuntimeException("Something went wrong while closing the client", e);
+    }
   }
 }
