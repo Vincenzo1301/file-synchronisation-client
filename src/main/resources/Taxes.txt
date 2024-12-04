@@ -1,0 +1,7 @@
+Simple Tax Report
+=================
+Name: John Doe
+Income: $50,000
+Tax Rate: 20%
+Tax Due: $10,000
+=================

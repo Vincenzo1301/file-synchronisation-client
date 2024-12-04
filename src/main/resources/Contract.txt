@@ -1,0 +1,18 @@
+Simple Car Purchase Agreement
+====================================================================
+Seller: Jane Doe
+Buyer: John Smith
+Car: 2015 Toyota Corolla
+VIN: ABC123456789XYZ
+Price: $10,000
+
+Terms:
+1. The car is sold "as-is" with no warranties implied or expressed.
+2. The buyer agrees to pay the full amount at the time of sale.
+3. The seller certifies the car is free of liens and encumbrances.
+
+Signatures:
+Seller: ______________________   Date: ___________
+Buyer: ______________________    Date: ___________
+
+====================================================================
