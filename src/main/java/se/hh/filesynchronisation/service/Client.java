@@ -86,7 +86,6 @@ public class Client {
                           "   * %s (Size: %d bytes, Path: %s)%n",
                           file.name(), file.size(), file.path()));
 
-          // Create and send the FileBackupRequest as a JSON string
           FileBackupRequest backupRequest =
               new FileBackupRequest(
                   clientIdentifier, response.fileMetadata(), BACKUP_REQUEST);
