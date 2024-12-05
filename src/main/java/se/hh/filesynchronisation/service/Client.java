@@ -1,5 +1,10 @@
 package se.hh.filesynchronisation.service;
 
+import static se.hh.filesynchronisation.enums.RequestType.BACKUP_REQUEST;
+import static se.hh.filesynchronisation.enums.RequestType.SYNC_REQUEST;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -24,6 +29,8 @@ public class Client {
   private final ObjectOutputStream out;
   private final ObjectInputStream in;
   private final Set<File> files;
+  private final GsonBuilder builder;
+  private final Gson gson;
 
   public Client(String host, int port, String clientIdentifier) {
     try {
@@ -31,7 +38,9 @@ public class Client {
       this.clientSocket = new Socket(host, port);
       this.out = new ObjectOutputStream(clientSocket.getOutputStream());
       this.in = new ObjectInputStream(clientSocket.getInputStream());
-      this.files = new HashSet();
+      this.files = new HashSet<>();
+      this.builder = new GsonBuilder();
+      this.gson = builder.create();
     } catch (Exception e) {
       throw new RuntimeException("Something went wrong while creating the client", e);
     }
@@ -54,15 +63,19 @@ public class Client {
     }
 
     Set<FileDto> fileDtos = files.stream().map(this::toFileDto).collect(Collectors.toSet());
-    FileSyncRequest syncRequest = new FileSyncRequest(clientIdentifier, fileDtos);
+    FileSyncRequest syncRequest =
+        new FileSyncRequest(clientIdentifier, fileDtos, SYNC_REQUEST);
 
     try {
-      out.writeObject(syncRequest);
+      String syncRequestJson = gson.toJson(syncRequest);
+      out.writeObject(syncRequestJson);
       out.flush();
-      Object o = in.readObject();
-      if (o instanceof FileSyncResult response) {
+
+      String responseJson = (String) in.readObject();
+      if (isValidJson(responseJson, FileSyncResult.class)) {
+        FileSyncResult response = gson.fromJson(responseJson, FileSyncResult.class);
         System.out.println("-----------------------------------------------------");
-        System.out.println("Received file metadata from server which has to been safe.");
+        System.out.println("Received file metadata from server which has to be saved.");
 
         if (!response.fileMetadata().isEmpty()) {
           response
@@ -72,14 +85,20 @@ public class Client {
                       System.out.printf(
                           "   * %s (Size: %d bytes, Path: %s)%n",
                           file.name(), file.size(), file.path()));
+
+          // Create and send the FileBackupRequest as a JSON string
           FileBackupRequest backupRequest =
-              new FileBackupRequest(clientIdentifier, response.fileMetadata());
-          out.writeObject(backupRequest);
+              new FileBackupRequest(
+                  clientIdentifier, response.fileMetadata(), BACKUP_REQUEST);
+          String backupRequestJson = gson.toJson(backupRequest);
+          out.writeObject(backupRequestJson);
           out.flush();
         }
 
         close();
         System.out.println("-----------------------------------------------------");
+      } else {
+        System.err.println("[WARNING]: Invalid response received from server!");
       }
     } catch (IOException | ClassNotFoundException e) {
       throw new RuntimeException("Something went wrong while sending file metadata", e);
@@ -94,6 +113,15 @@ public class Client {
       System.err.println("Failed to determine content type for file: " + file.getName());
     }
     return new FileDto(file.getName(), file.length(), contentType, file.getAbsolutePath());
+  }
+
+  private boolean isValidJson(String json, Class<?> clazz) {
+    try {
+      gson.fromJson(json, clazz);
+      return true;
+    } catch (com.google.gson.JsonSyntaxException e) {
+      return false;
+    }
   }
 
   private void close() {
