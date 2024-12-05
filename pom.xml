@@ -37,7 +37,7 @@
                             <archive>
                                 <manifest>
                                     <mainClass>
-                                        se.hh.internetchatserver.Main
+                                        se.hh.filesynchronisation.Main
                                     </mainClass>
                                 </manifest>
                             </archive>
